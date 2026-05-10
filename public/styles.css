@@ -524,6 +524,27 @@ ul {
 
 .chat-close:hover { transform: scale(1.2); }
 
+.chat-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1.5px solid #d7e6e1;
+  background: #f6fbfa;
+}
+
+.chat-status-item {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #c3dcd3;
+  border-radius: 999px;
+  padding: 0.18rem 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #315850;
+  background: #ffffff;
+}
+
 .chat-messages {
   flex: 1;
   overflow-y: auto;

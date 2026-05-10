@@ -290,6 +290,21 @@ async function generateLLMChatResponse(message, history = []) {
   };
 }
 
+app.get("/api/chat/status", (req, res) => {
+  let endpointHost = "unknown";
+  try {
+    endpointHost = new URL(OPENAI_API_URL).host;
+  } catch (error) {
+    endpointHost = "invalid-url";
+  }
+
+  res.json({
+    llmConfigured: Boolean(OPENAI_API_KEY),
+    model: OPENAI_MODEL,
+    endpointHost
+  });
+});
+
 app.get("/api/stores", (req, res) => {
   res.json({ stores });
 });

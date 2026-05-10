@@ -325,6 +325,9 @@ const chatForm     = document.getElementById("chatForm");
 const chatInput    = document.getElementById("chatInput");
 const chatTyping   = document.getElementById("chatTyping");
 const chatModeBadge = document.getElementById("chatModeBadge");
+const chatStatusProvider = document.getElementById("chatStatusProvider");
+const chatStatusModel = document.getElementById("chatStatusModel");
+const chatStatusEndpoint = document.getElementById("chatStatusEndpoint");
 
 let chatHistory = [];
 
@@ -332,6 +335,21 @@ function setChatModeBadge(source) {
   const mode = source === "llm" ? "llm" : source === "fallback" ? "fallback" : "unknown";
   chatModeBadge.textContent = mode;
   chatModeBadge.className = `chat-mode-badge ${mode}`;
+  chatStatusProvider.textContent = `Provider: ${mode}`;
+}
+
+async function loadChatStatus() {
+  try {
+    const status = await fetchJson("/api/chat/status");
+    chatStatusModel.textContent = `Model: ${status.model || "n/a"}`;
+    chatStatusEndpoint.textContent = `Endpoint: ${status.endpointHost || "n/a"}`;
+    if (!status.llmConfigured) {
+      setChatModeBadge("fallback");
+    }
+  } catch (error) {
+    chatStatusModel.textContent = "Model: unavailable";
+    chatStatusEndpoint.textContent = "Endpoint: unavailable";
+  }
 }
 
 function toggleChat() {
@@ -443,3 +461,4 @@ async function bootstrap() {
 
 bootstrap();
 setChatModeBadge("fallback");
+loadChatStatus();
