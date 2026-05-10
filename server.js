@@ -70,6 +70,18 @@ const analyticsSummary = {
   }
 };
 
+const dailyOrders = [
+  { day: "Mon", online: 1842, instore: 1123 },
+  { day: "Tue", online: 2103, instore: 987 },
+  { day: "Wed", online: 1967, instore: 1201 },
+  { day: "Thu", online: 2341, instore: 1089 },
+  { day: "Fri", online: 2876, instore: 1432 },
+  { day: "Sat", online: 3102, instore: 2341 },
+  { day: "Sun", online: 2489, instore: 1998 }
+];
+
+const revenueByChannel = { online: 487200, instore: 312800, pickup: 98400 };
+
 function getProduct(sku) {
   return products.find((p) => p.sku === sku);
 }
@@ -260,6 +272,94 @@ app.post("/api/agent/query", (req, res) => {
     architectureTrace: trace,
     timestamp: new Date().toISOString()
   });
+});
+
+app.get("/api/analytics/charts", (req, res) => {
+  const inventoryChart = stores.map((store) => ({
+    store: store.name,
+    storeId: store.id,
+    quantities: products.map((p) => inventoryByStore[store.id][p.sku])
+  }));
+
+  const demandForecast = products.map((p) => ({
+    name: p.name,
+    sku: p.sku,
+    signal: analyticsSummary.demandSignal[p.sku],
+    forecastDelta: p.sku === "SKU-ULTRA-001" ? 12 : p.sku === "SKU-COZY-002" ? 7 : 19,
+    totalStock: Object.values(inventoryByStore).reduce((sum, s) => sum + (s[p.sku] || 0), 0)
+  }));
+
+  res.json({
+    dailyOrders,
+    revenueByChannel,
+    products: products.map((p) => p.name),
+    inventoryChart,
+    demandForecast,
+    stockoutRisk: analyticsSummary.stockoutRiskSkus.map((sku) => ({
+      sku,
+      name: getProduct(sku)?.name,
+      totalStock: Object.values(inventoryByStore).reduce((sum, s) => sum + (s[sku] || 0), 0)
+    }))
+  });
+});
+
+app.post("/api/chat", (req, res) => {
+  const { message = "", history = [] } = req.body || {};
+  const intent = parseIntent(message);
+  const lc = message.toLowerCase();
+
+  let reply = "";
+  let suggestions = [];
+
+  if (lc.match(/^h(i|ello|ey)/)) {
+    reply = "Hello! I'm the Unify Retail AI Agent. I can help with inventory, pricing parity, demand forecasts, and analytics across online and in-store channels. What would you like to explore?";
+    suggestions = ["Check inventory levels", "Show pricing parity", "Demand forecast", "Order analytics"];
+  } else if (intent === "inventory") {
+    const rows = stores.map((store) => {
+      const lines = products.map((p) => `  • ${p.name}: ${inventoryByStore[store.id][p.sku]} units`).join("\n");
+      return `${store.name}:\n${lines}`;
+    }).join("\n\n");
+    reply = `Current inventory snapshot across all stores:\n\n${rows}\n\nStockout risk flagged for: ${analyticsSummary.stockoutRiskSkus.map((s) => getProduct(s)?.name).join(", ")}.`;
+    suggestions = ["Which store has lowest stock?", "Show demand forecast", "Check pricing parity"];
+  } else if (intent === "pricing") {
+    const rows = products.map((p) => {
+      const on = pricingByChannel.online[p.sku];
+      const ins = pricingByChannel.instore[p.sku];
+      const gap = Math.abs(on.promo - ins.promo);
+      return `${p.name}\n  Online: $${on.promo} (${on.promoLabel})\n  In-Store: $${ins.promo} (${ins.promoLabel})\n  Gap: $${gap}`;
+    }).join("\n\n");
+    reply = `Pricing parity check across channels:\n\n${rows}\n\nRecommendation: Unify promo rules through a single Apigee-managed pricing API to eliminate gaps.`;
+    suggestions = ["How do I fix price gaps?", "Check inventory levels", "Show order analytics"];
+  } else if (intent === "forecast") {
+    const rows = products.map((p) => {
+      const total = Object.values(inventoryByStore).reduce((sum, s) => sum + (s[p.sku] || 0), 0);
+      return `${p.name}: ${analyticsSummary.demandSignal[p.sku]}, total stock ${total} units`;
+    }).join("\n");
+    reply = `Demand forecast from BigQuery model:\n\n${rows}\n\nUrgent: Smart Aroma Diffuser shows +19% demand — consider pre-positioning stock from NYC to SFO.`;
+    suggestions = ["Which SKU needs urgent replenishment?", "Show inventory by store", "Pricing check"];
+  } else if (lc.includes("analytic") || lc.includes("order") || lc.includes("revenue") || lc.includes("sales")) {
+    const totalRevenue = Object.values(revenueByChannel).reduce((a, b) => a + b, 0);
+    reply = `Today's unified commerce summary:\n\n• Total orders: ${analyticsSummary.todayOrders.toLocaleString()}\n• Online share: ${analyticsSummary.onlineOrdersPct}%\n• Same-day pickup: ${analyticsSummary.sameDayPickupPct}%\n• Total revenue: $${totalRevenue.toLocaleString()}\n• Stockout risk SKUs: ${analyticsSummary.stockoutRiskSkus.length}\n\nAll transactions stream into BigQuery via Pub/Sub for real-time supply chain analytics.`;
+    suggestions = ["Show inventory", "Check pricing", "Demand forecast"];
+  } else if (lc.includes("store") || lc.includes("location")) {
+    const storeList = stores.map((s) => `• ${s.name} (${s.city})`).join("\n");
+    reply = `Active retail locations:\n\n${storeList}\n\nAll stores share a unified inventory pool through Cloud Spanner, queried via Apigee.`;
+    suggestions = ["Check inventory by store", "Compare store performance", "Show forecasts"];
+  } else if (lc.includes("recommend") || lc.includes("suggest") || lc.includes("what should")) {
+    reply = `Top AI recommendations right now:\n\n1. Pre-position Smart Aroma Diffuser stock — +19% demand spike expected.\n2. Align online/in-store promo metadata through a single Apigee pricing API.\n3. Reserve in-store pickup inventory in Cloud Spanner to avoid overselling.\n4. Scale GKE order microservice ahead of Friday–Saturday peak traffic.\n5. Retrain BigQuery demand model with this week's transaction data.`;
+    suggestions = ["Show full inventory", "View pricing gaps", "See analytics dashboard"];
+  } else {
+    const prevTopics = history.slice(-3).map((h) => h.content).join(" ").toLowerCase();
+    if (prevTopics.includes("inventory")) {
+      reply = "Would you like to drill into a specific store or SKU? I can break down stock levels, flag low inventory, or show demand signals for any product.";
+      suggestions = ["Show NYC inventory", "Check SKU-HOME-003 levels", "Show demand forecast"];
+    } else {
+      reply = "I can help you with:\n\n• **Inventory** — real-time stock by store and SKU\n• **Pricing** — channel parity and promo alignment\n• **Forecasting** — demand signals and replenishment urgency\n• **Analytics** — orders, revenue, and supply chain KPIs\n• **Recommendations** — AI-driven action items\n\nWhat would you like to explore?";
+      suggestions = ["Check inventory", "Show pricing parity", "Demand forecast", "Order analytics"];
+    }
+  }
+
+  res.json({ reply, suggestions, intent, timestamp: new Date().toISOString() });
 });
 
 app.get("*", (req, res) => {

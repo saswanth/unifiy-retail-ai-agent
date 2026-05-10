@@ -10,6 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -23,9 +24,14 @@
         Simulate how Cloud CDN, GKE, Apigee, Cloud Spanner, and BigQuery work together to keep
         pricing, promotions, and inventory in sync.
       </p>
+      <nav class="tabs" role="tablist">
+        <button class="tab active" data-tab="agent" role="tab">Agent Playground</button>
+        <button class="tab" data-tab="analytics" role="tab">Analytics Dashboard</button>
+      </nav>
     </header>
 
-    <main class="layout">
+    <!-- ── TAB: Agent Playground ── -->
+    <main class="layout tab-content active" id="tab-agent">
       <section class="panel control-panel">
         <h2>Scenario Playground</h2>
         <div class="field-grid">
@@ -49,22 +55,18 @@
             <input id="promptInput" type="text" placeholder="Ask about stock, promos, or forecast" />
           </label>
         </div>
-
         <div class="actions">
           <button id="runAgentBtn">Run AI Agent</button>
           <button id="checkOpsBtn" class="ghost">Quick Ops Check</button>
         </div>
-
         <div class="metrics" id="metrics"></div>
       </section>
 
       <section class="panel response-panel">
         <h2>Agent Response</h2>
         <article id="agentMessage" class="agent-message">Waiting for your prompt.</article>
-
         <h3>Recommendations</h3>
         <ul id="recommendations"></ul>
-
         <h3>Architecture Trace</h3>
         <div id="trace" class="trace"></div>
       </section>
@@ -74,6 +76,66 @@
         <div id="analyticsCards" class="analytics-cards"></div>
       </section>
     </main>
+
+    <!-- ── TAB: Analytics Dashboard ── -->
+    <main class="layout-analytics tab-content" id="tab-analytics">
+      <div class="kpi-row" id="kpiRow"></div>
+
+      <div class="charts-grid">
+        <div class="chart-card wide">
+          <h3>Orders Trend — Online vs In-Store (7 days)</h3>
+          <canvas id="ordersChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Revenue by Channel</h3>
+          <canvas id="revenueChart"></canvas>
+        </div>
+        <div class="chart-card wide">
+          <h3>Inventory by Store &amp; SKU</h3>
+          <canvas id="inventoryChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Demand Forecast Delta (%)</h3>
+          <canvas id="forecastChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Stockout Risk</h3>
+          <div id="stockoutTable" class="stockout-table"></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ── Chatbot Widget ── -->
+    <div class="chatbot-fab" id="chatFab" title="Ask AI Agent" aria-label="Open chat">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    </div>
+
+    <div class="chatbot-panel" id="chatPanel" aria-hidden="true">
+      <div class="chat-header">
+        <span>Retail AI Agent</span>
+        <button class="chat-close" id="chatClose" aria-label="Close chat">✕</button>
+      </div>
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-msg agent">
+          <div class="bubble">Hi! I'm your Retail AI Agent. Ask me about inventory, pricing, demand forecasts, or analytics.</div>
+          <div class="chat-suggestions" id="initSuggestions">
+            <button class="suggestion">Check inventory levels</button>
+            <button class="suggestion">Show pricing parity</button>
+            <button class="suggestion">Demand forecast</button>
+            <button class="suggestion">Order analytics</button>
+          </div>
+        </div>
+      </div>
+      <div class="chat-typing" id="chatTyping" style="display:none">
+        <span></span><span></span><span></span>
+      </div>
+      <form class="chat-input-row" id="chatForm">
+        <input id="chatInput" type="text" placeholder="Ask anything about your retail data…" autocomplete="off" />
+        <button type="submit" aria-label="Send">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </form>
+    </div>
 
     <script src="app.js"></script>
   </body>
