@@ -1,0 +1,22 @@
+{
+  "name": "unify-retail-ai-agent",
+  "version": "1.0.0",
+  "description": "Interactive AI agent UI to unify online and in-store retail experiences",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "retail",
+    "ai-agent",
+    "gke",
+    "bigquery",
+    "apigee",
+    "spanner",
+    "cloud-cdn"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<AssignMessage async="false" continueOnError="true" enabled="true" name="AssignMessage-CORS">
+  <DisplayName>Assign Message CORS</DisplayName>
+  <Add>
+    <Headers>
+      <Header name="Access-Control-Allow-Origin">*</Header>
+      <Header name="Access-Control-Allow-Headers">Origin, X-Requested-With, Accept, Content-Type, x-api-key</Header>
+      <Header name="Access-Control-Allow-Methods">GET, POST, OPTIONS</Header>
+    </Headers>
+  </Add>
+  <IgnoreUnresolvedVariables>true</IgnoreUnresolvedVariables>
+  <AssignTo createNew="false" transport="http" type="response"/>
+</AssignMessage>

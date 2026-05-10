@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<TargetEndpoint name="default">
+  <HTTPTargetConnection>
+    <URL>https://REPLACE_WITH_GKE_INGRESS_HOST</URL>
+  </HTTPTargetConnection>
+</TargetEndpoint>

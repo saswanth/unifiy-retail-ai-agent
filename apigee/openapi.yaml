@@ -1,0 +1,105 @@
+openapi: 3.0.3
+info:
+  title: Unify Retail Agent API
+  version: 1.0.0
+  description: API surface for the unified online and in-store retail AI agent.
+servers:
+  - url: https://api.example.com
+paths:
+  /healthz:
+    get:
+      summary: Liveness check
+      responses:
+        '200':
+          description: Healthy
+  /readyz:
+    get:
+      summary: Readiness check
+      responses:
+        '200':
+          description: Ready
+  /api/stores:
+    get:
+      summary: List stores
+      responses:
+        '200':
+          description: Store list
+  /api/products:
+    get:
+      summary: List products
+      responses:
+        '200':
+          description: Product list
+  /api/inventory:
+    get:
+      summary: Check store inventory for SKU
+      parameters:
+        - in: query
+          name: storeId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: sku
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Inventory response
+        '400':
+          description: Missing parameters
+        '404':
+          description: Store or product not found
+  /api/pricing:
+    get:
+      summary: Check pricing by channel and SKU
+      parameters:
+        - in: query
+          name: channel
+          required: false
+          schema:
+            type: string
+            enum: [online, instore]
+            default: online
+        - in: query
+          name: sku
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pricing response
+        '400':
+          description: Missing parameters
+        '404':
+          description: Pricing not found
+  /api/analytics/summary:
+    get:
+      summary: BigQuery analytics summary snapshot
+      responses:
+        '200':
+          description: Analytics summary
+  /api/agent/query:
+    post:
+      summary: Run AI agent query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt:
+                  type: string
+                storeId:
+                  type: string
+                sku:
+                  type: string
+                channel:
+                  type: string
+                  enum: [online, instore]
+      responses:
+        '200':
+          description: AI response payload
+components: {}

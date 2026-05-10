@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: unify-retail-agent-config
+data:
+  NODE_ENV: production
+  PORT: "3000"

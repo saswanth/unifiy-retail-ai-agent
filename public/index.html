@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Unify Retail AI Agent</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+
+    <header class="hero">
+      <p class="kicker">Unified Commerce Control</p>
+      <h1>AI Agent for Online + In-Store Retail Harmony</h1>
+      <p class="subtitle">
+        Simulate how Cloud CDN, GKE, Apigee, Cloud Spanner, and BigQuery work together to keep
+        pricing, promotions, and inventory in sync.
+      </p>
+    </header>
+
+    <main class="layout">
+      <section class="panel control-panel">
+        <h2>Scenario Playground</h2>
+        <div class="field-grid">
+          <label>
+            Store
+            <select id="storeSelect"></select>
+          </label>
+          <label>
+            Product
+            <select id="skuSelect"></select>
+          </label>
+          <label>
+            Channel
+            <select id="channelSelect">
+              <option value="online">Online</option>
+              <option value="instore">In Store</option>
+            </select>
+          </label>
+          <label>
+            AI Prompt
+            <input id="promptInput" type="text" placeholder="Ask about stock, promos, or forecast" />
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="runAgentBtn">Run AI Agent</button>
+          <button id="checkOpsBtn" class="ghost">Quick Ops Check</button>
+        </div>
+
+        <div class="metrics" id="metrics"></div>
+      </section>
+
+      <section class="panel response-panel">
+        <h2>Agent Response</h2>
+        <article id="agentMessage" class="agent-message">Waiting for your prompt.</article>
+
+        <h3>Recommendations</h3>
+        <ul id="recommendations"></ul>
+
+        <h3>Architecture Trace</h3>
+        <div id="trace" class="trace"></div>
+      </section>
+
+      <section class="panel analytics-panel">
+        <h2>BigQuery Analytics Snapshot</h2>
+        <div id="analyticsCards" class="analytics-cards"></div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

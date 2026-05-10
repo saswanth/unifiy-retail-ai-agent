@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<APIProxy name="unify-retail-agent">
+  <Description>Proxy for unified online and in-store retail AI agent APIs.</Description>
+  <DisplayName>unify-retail-agent</DisplayName>
+  <Policies>
+    <Policy>Verify-API-Key</Policy>
+    <Policy>Spike-Arrest</Policy>
+    <Policy>AssignMessage-CORS</Policy>
+  </Policies>
+  <ProxyEndpoints>
+    <ProxyEndpoint>default</ProxyEndpoint>
+  </ProxyEndpoints>
+  <TargetEndpoints>
+    <TargetEndpoint>default</TargetEndpoint>
+  </TargetEndpoints>
+</APIProxy>
