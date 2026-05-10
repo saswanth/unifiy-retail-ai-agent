@@ -324,8 +324,15 @@ const chatMessages = document.getElementById("chatMessages");
 const chatForm     = document.getElementById("chatForm");
 const chatInput    = document.getElementById("chatInput");
 const chatTyping   = document.getElementById("chatTyping");
+const chatModeBadge = document.getElementById("chatModeBadge");
 
 let chatHistory = [];
+
+function setChatModeBadge(source) {
+  const mode = source === "llm" ? "llm" : source === "fallback" ? "fallback" : "unknown";
+  chatModeBadge.textContent = mode;
+  chatModeBadge.className = `chat-mode-badge ${mode}`;
+}
 
 function toggleChat() {
   const open = chatPanel.classList.toggle("open");
@@ -391,10 +398,12 @@ async function sendChatMessage(text) {
       body: JSON.stringify({ message: msg, history: chatHistory.slice(-6) })
     });
     chatTyping.style.display = "none";
+    setChatModeBadge(data.source);
     appendMessage("agent", data.reply, data.timestamp, data.suggestions);
     chatHistory.push({ role: "agent", content: data.reply });
   } catch (err) {
     chatTyping.style.display = "none";
+    setChatModeBadge("unknown");
     appendMessage("agent", `Error: ${err.message}`, new Date().toISOString());
   }
 }
@@ -433,3 +442,4 @@ async function bootstrap() {
 }
 
 bootstrap();
+setChatModeBadge("fallback");

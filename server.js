@@ -3,6 +3,9 @@ const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_API_URL = process.env.OPENAI_API_URL || "https://api.openai.com/v1/chat/completions";
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
@@ -159,6 +162,134 @@ function parseIntent(prompt) {
   return "overview";
 }
 
+function buildRetailContext() {
+  return {
+    stores,
+    products,
+    inventoryByStore,
+    pricingByChannel,
+    analyticsSummary,
+    dailyOrders,
+    revenueByChannel
+  };
+}
+
+function buildFallbackChatResponse(message, history = []) {
+  const intent = parseIntent(message);
+  const lc = message.toLowerCase();
+
+  let reply = "";
+  let suggestions = [];
+
+  if (lc.match(/^h(i|ello|ey)/)) {
+    reply = "Hello! I'm the Unify Retail AI Agent. I can help with inventory, pricing parity, demand forecasts, and analytics across online and in-store channels. What would you like to explore?";
+    suggestions = ["Check inventory levels", "Show pricing parity", "Demand forecast", "Order analytics"];
+  } else if (intent === "inventory") {
+    const rows = stores.map((store) => {
+      const lines = products.map((p) => `  • ${p.name}: ${inventoryByStore[store.id][p.sku]} units`).join("\n");
+      return `${store.name}:\n${lines}`;
+    }).join("\n\n");
+    reply = `Current inventory snapshot across all stores:\n\n${rows}\n\nStockout risk flagged for: ${analyticsSummary.stockoutRiskSkus.map((sku) => getProduct(sku)?.name).join(", ")}.`;
+    suggestions = ["Which store has lowest stock?", "Show demand forecast", "Check pricing parity"];
+  } else if (intent === "pricing") {
+    const rows = products.map((p) => {
+      const onlinePricing = pricingByChannel.online[p.sku];
+      const instorePricing = pricingByChannel.instore[p.sku];
+      const gap = Math.abs(onlinePricing.promo - instorePricing.promo);
+      return `${p.name}\n  Online: $${onlinePricing.promo} (${onlinePricing.promoLabel})\n  In-Store: $${instorePricing.promo} (${instorePricing.promoLabel})\n  Gap: $${gap}`;
+    }).join("\n\n");
+    reply = `Pricing parity check across channels:\n\n${rows}\n\nRecommendation: Unify promo rules through a single Apigee-managed pricing API to eliminate gaps.`;
+    suggestions = ["How do I fix price gaps?", "Check inventory levels", "Show order analytics"];
+  } else if (intent === "forecast") {
+    const rows = products.map((p) => {
+      const total = Object.values(inventoryByStore).reduce((sum, storeInventory) => sum + (storeInventory[p.sku] || 0), 0);
+      return `${p.name}: ${analyticsSummary.demandSignal[p.sku]}, total stock ${total} units`;
+    }).join("\n");
+    reply = `Demand forecast from BigQuery model:\n\n${rows}\n\nUrgent: Smart Aroma Diffuser shows +19% demand — consider pre-positioning stock from NYC to SFO.`;
+    suggestions = ["Which SKU needs urgent replenishment?", "Show inventory by store", "Pricing check"];
+  } else if (lc.includes("analytic") || lc.includes("order") || lc.includes("revenue") || lc.includes("sales")) {
+    const totalRevenue = Object.values(revenueByChannel).reduce((sum, value) => sum + value, 0);
+    reply = `Today's unified commerce summary:\n\n• Total orders: ${analyticsSummary.todayOrders.toLocaleString()}\n• Online share: ${analyticsSummary.onlineOrdersPct}%\n• Same-day pickup: ${analyticsSummary.sameDayPickupPct}%\n• Total revenue: $${totalRevenue.toLocaleString()}\n• Stockout risk SKUs: ${analyticsSummary.stockoutRiskSkus.length}\n\nAll transactions stream into BigQuery via Pub/Sub for real-time supply chain analytics.`;
+    suggestions = ["Show inventory", "Check pricing", "Demand forecast"];
+  } else if (lc.includes("store") || lc.includes("location")) {
+    const storeList = stores.map((store) => `• ${store.name} (${store.city})`).join("\n");
+    reply = `Active retail locations:\n\n${storeList}\n\nAll stores share a unified inventory pool through Cloud Spanner, queried via Apigee.`;
+    suggestions = ["Check inventory by store", "Compare store performance", "Show forecasts"];
+  } else if (lc.includes("recommend") || lc.includes("suggest") || lc.includes("what should")) {
+    reply = `Top AI recommendations right now:\n\n1. Pre-position Smart Aroma Diffuser stock — +19% demand spike expected.\n2. Align online/in-store promo metadata through a single Apigee pricing API.\n3. Reserve in-store pickup inventory in Cloud Spanner to avoid overselling.\n4. Scale GKE order microservice ahead of Friday-Saturday peak traffic.\n5. Retrain BigQuery demand model with this week's transaction data.`;
+    suggestions = ["Show full inventory", "View pricing gaps", "See analytics dashboard"];
+  } else {
+    const prevTopics = history.slice(-3).map((entry) => entry.content).join(" ").toLowerCase();
+    if (prevTopics.includes("inventory")) {
+      reply = "Would you like to drill into a specific store or SKU? I can break down stock levels, flag low inventory, or show demand signals for any product.";
+      suggestions = ["Show NYC inventory", "Check SKU-HOME-003 levels", "Show demand forecast"];
+    } else {
+      reply = "I can help you with:\n\n• Inventory - real-time stock by store and SKU\n• Pricing - channel parity and promo alignment\n• Forecasting - demand signals and replenishment urgency\n• Analytics - orders, revenue, and supply chain KPIs\n• Recommendations - AI-driven action items\n\nWhat would you like to explore?";
+      suggestions = ["Check inventory", "Show pricing parity", "Demand forecast", "Order analytics"];
+    }
+  }
+
+  return { reply, suggestions, intent };
+}
+
+async function generateLLMChatResponse(message, history = []) {
+  if (!OPENAI_API_KEY) {
+    return null;
+  }
+
+  const systemPrompt = [
+    "You are the Unify Retail AI Agent.",
+    "You help retail operators understand online and in-store inventory, pricing parity, forecasting, and analytics.",
+    "Use only the provided dataset. Do not invent stores, products, metrics, or integrations.",
+    "Keep answers concise, operational, and user-friendly.",
+    "After the answer, provide 3 short follow-up suggestions as a JSON array under the key suggestions.",
+    "Return valid JSON with this exact shape: {\"reply\": string, \"suggestions\": string[] }."
+  ].join(" ");
+
+  const context = JSON.stringify(buildRetailContext());
+  const messages = [
+    { role: "system", content: systemPrompt },
+    { role: "system", content: `Retail dataset: ${context}` },
+    ...history.slice(-6).map((entry) => ({
+      role: entry.role === "agent" ? "assistant" : "user",
+      content: entry.content
+    })),
+    { role: "user", content: message }
+  ];
+
+  const response = await fetch(OPENAI_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      response_format: { type: "json_object" },
+      temperature: 0.3,
+      messages
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`LLM request failed: ${response.status} ${errorText}`);
+  }
+
+  const payload = await response.json();
+  const content = payload.choices?.[0]?.message?.content;
+
+  if (!content) {
+    throw new Error("LLM response was empty");
+  }
+
+  const parsed = JSON.parse(content);
+  return {
+    reply: typeof parsed.reply === "string" ? parsed.reply : "I could not generate a reply.",
+    suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions.slice(0, 4) : []
+  };
+}
+
 app.get("/api/stores", (req, res) => {
   res.json({ stores });
 });
@@ -303,63 +434,28 @@ app.get("/api/analytics/charts", (req, res) => {
   });
 });
 
-app.post("/api/chat", (req, res) => {
+app.post("/api/chat", async (req, res) => {
   const { message = "", history = [] } = req.body || {};
-  const intent = parseIntent(message);
-  const lc = message.toLowerCase();
+  try {
+    const llmResponse = await generateLLMChatResponse(message, history);
+    const fallback = buildFallbackChatResponse(message, history);
+    const finalResponse = llmResponse
+      ? { ...fallback, ...llmResponse, intent: fallback.intent, source: "llm" }
+      : { ...fallback, source: "fallback" };
 
-  let reply = "";
-  let suggestions = [];
-
-  if (lc.match(/^h(i|ello|ey)/)) {
-    reply = "Hello! I'm the Unify Retail AI Agent. I can help with inventory, pricing parity, demand forecasts, and analytics across online and in-store channels. What would you like to explore?";
-    suggestions = ["Check inventory levels", "Show pricing parity", "Demand forecast", "Order analytics"];
-  } else if (intent === "inventory") {
-    const rows = stores.map((store) => {
-      const lines = products.map((p) => `  • ${p.name}: ${inventoryByStore[store.id][p.sku]} units`).join("\n");
-      return `${store.name}:\n${lines}`;
-    }).join("\n\n");
-    reply = `Current inventory snapshot across all stores:\n\n${rows}\n\nStockout risk flagged for: ${analyticsSummary.stockoutRiskSkus.map((s) => getProduct(s)?.name).join(", ")}.`;
-    suggestions = ["Which store has lowest stock?", "Show demand forecast", "Check pricing parity"];
-  } else if (intent === "pricing") {
-    const rows = products.map((p) => {
-      const on = pricingByChannel.online[p.sku];
-      const ins = pricingByChannel.instore[p.sku];
-      const gap = Math.abs(on.promo - ins.promo);
-      return `${p.name}\n  Online: $${on.promo} (${on.promoLabel})\n  In-Store: $${ins.promo} (${ins.promoLabel})\n  Gap: $${gap}`;
-    }).join("\n\n");
-    reply = `Pricing parity check across channels:\n\n${rows}\n\nRecommendation: Unify promo rules through a single Apigee-managed pricing API to eliminate gaps.`;
-    suggestions = ["How do I fix price gaps?", "Check inventory levels", "Show order analytics"];
-  } else if (intent === "forecast") {
-    const rows = products.map((p) => {
-      const total = Object.values(inventoryByStore).reduce((sum, s) => sum + (s[p.sku] || 0), 0);
-      return `${p.name}: ${analyticsSummary.demandSignal[p.sku]}, total stock ${total} units`;
-    }).join("\n");
-    reply = `Demand forecast from BigQuery model:\n\n${rows}\n\nUrgent: Smart Aroma Diffuser shows +19% demand — consider pre-positioning stock from NYC to SFO.`;
-    suggestions = ["Which SKU needs urgent replenishment?", "Show inventory by store", "Pricing check"];
-  } else if (lc.includes("analytic") || lc.includes("order") || lc.includes("revenue") || lc.includes("sales")) {
-    const totalRevenue = Object.values(revenueByChannel).reduce((a, b) => a + b, 0);
-    reply = `Today's unified commerce summary:\n\n• Total orders: ${analyticsSummary.todayOrders.toLocaleString()}\n• Online share: ${analyticsSummary.onlineOrdersPct}%\n• Same-day pickup: ${analyticsSummary.sameDayPickupPct}%\n• Total revenue: $${totalRevenue.toLocaleString()}\n• Stockout risk SKUs: ${analyticsSummary.stockoutRiskSkus.length}\n\nAll transactions stream into BigQuery via Pub/Sub for real-time supply chain analytics.`;
-    suggestions = ["Show inventory", "Check pricing", "Demand forecast"];
-  } else if (lc.includes("store") || lc.includes("location")) {
-    const storeList = stores.map((s) => `• ${s.name} (${s.city})`).join("\n");
-    reply = `Active retail locations:\n\n${storeList}\n\nAll stores share a unified inventory pool through Cloud Spanner, queried via Apigee.`;
-    suggestions = ["Check inventory by store", "Compare store performance", "Show forecasts"];
-  } else if (lc.includes("recommend") || lc.includes("suggest") || lc.includes("what should")) {
-    reply = `Top AI recommendations right now:\n\n1. Pre-position Smart Aroma Diffuser stock — +19% demand spike expected.\n2. Align online/in-store promo metadata through a single Apigee pricing API.\n3. Reserve in-store pickup inventory in Cloud Spanner to avoid overselling.\n4. Scale GKE order microservice ahead of Friday–Saturday peak traffic.\n5. Retrain BigQuery demand model with this week's transaction data.`;
-    suggestions = ["Show full inventory", "View pricing gaps", "See analytics dashboard"];
-  } else {
-    const prevTopics = history.slice(-3).map((h) => h.content).join(" ").toLowerCase();
-    if (prevTopics.includes("inventory")) {
-      reply = "Would you like to drill into a specific store or SKU? I can break down stock levels, flag low inventory, or show demand signals for any product.";
-      suggestions = ["Show NYC inventory", "Check SKU-HOME-003 levels", "Show demand forecast"];
-    } else {
-      reply = "I can help you with:\n\n• **Inventory** — real-time stock by store and SKU\n• **Pricing** — channel parity and promo alignment\n• **Forecasting** — demand signals and replenishment urgency\n• **Analytics** — orders, revenue, and supply chain KPIs\n• **Recommendations** — AI-driven action items\n\nWhat would you like to explore?";
-      suggestions = ["Check inventory", "Show pricing parity", "Demand forecast", "Order analytics"];
-    }
+    return res.json({
+      ...finalResponse,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    const fallback = buildFallbackChatResponse(message, history);
+    return res.json({
+      ...fallback,
+      source: "fallback",
+      warning: "LLM unavailable, using fallback responses.",
+      timestamp: new Date().toISOString()
+    });
   }
-
-  res.json({ reply, suggestions, intent, timestamp: new Date().toISOString() });
 });
 
 app.get("*", (req, res) => {
